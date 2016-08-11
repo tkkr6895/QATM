@@ -1,8 +1,4 @@
 print(__doc__)
-
-# Author: Gael Varoquaux gael.varoquaux@normalesup.org
-# License: BSD 3 clause
-
 import datetime
 
 import numpy as np
@@ -15,15 +11,9 @@ from matplotlib.collections import LineCollection
 
 from sklearn import cluster, covariance, manifold
 
-###############################################################################
-# Retrieve the data from Internet
-
-# Choose a time period reasonnably calm (not too long ago so that we get
-# high-tech firms, and before the 2008 crash)
 d1 = datetime.datetime(2003, 1, 1)
 d2 = datetime.datetime(2008, 1, 1)
 
-# kraft symbol has now changed from KFT to MDLZ in yahoo
 symbol_dict = {
     'TOT': 'Total',
     'XOM': 'Exxon',
@@ -94,21 +84,15 @@ quotes = [quotes_historical_yahoo(symbol, d1, d2, asobject=True)
 open = np.array([q.open for q in quotes]).astype(np.float)
 close = np.array([q.close for q in quotes]).astype(np.float)
 
-# The daily variations of the quotes are what carry most information
 variation = close - open
 
-###############################################################################
-# Learn a graphical structure from the correlations
 edge_model = covariance.GraphLassoCV()
 
-# standardize the time series: using correlations rather than covariance
-# is more efficient for structure recovery
 X = variation.copy().T
 X /= X.std(axis=0)
 edge_model.fit(X)
 
-###############################################################################
-# Cluster using affinity propagation
+
 
 _, labels = cluster.affinity_propagation(edge_model.covariance_)
 n_labels = labels.max()
@@ -116,40 +100,25 @@ n_labels = labels.max()
 for i in range(n_labels + 1):
     print('Cluster %i: %s' % ((i + 1), ', '.join(names[labels == i])))
 
-###############################################################################
-# Find a low-dimension embedding for visualization: find the best position of
-# the nodes (the stocks) on a 2D plane
-
-# We use a dense eigen_solver to achieve reproducibility (arpack is
-# initiated with random vectors that we don't control). In addition, we
-# use a large number of neighbors to capture the large-scale structure.
 node_position_model = manifold.LocallyLinearEmbedding(
     n_components=2, eigen_solver='dense', n_neighbors=6)
 
 embedding = node_position_model.fit_transform(X.T).T
 
-###############################################################################
-# Visualization
+
 plt.figure(1, facecolor='w', figsize=(10, 8))
 plt.clf()
 ax = plt.axes([0., 0., 1., 1.])
 plt.axis('off')
-
-# Display a graph of the partial correlations
 partial_correlations = edge_model.precision_.copy()
 d = 1 / np.sqrt(np.diag(partial_correlations))
 partial_correlations *= d
 partial_correlations *= d[:, np.newaxis]
 non_zero = (np.abs(np.triu(partial_correlations, k=1)) > 0.02)
-
-# Plot the nodes using the coordinates of our embedding
 plt.scatter(embedding[0], embedding[1], s=100 * d ** 2, c=labels,
             cmap=plt.cm.spectral)
 
-# Plot the edges
 start_idx, end_idx = np.where(non_zero)
-#a sequence of (*line0*, *line1*, *line2*), where::
-#            linen = (x0, y0), (x1, y1), ... (xm, ym)
 segments = [[embedding[:, start], embedding[:, stop]]
             for start, stop in zip(start_idx, end_idx)]
 values = np.abs(partial_correlations[non_zero])
@@ -160,8 +129,6 @@ lc.set_array(values)
 lc.set_linewidths(15 * values)
 ax.add_collection(lc)
 
-# Add a label to each node. The challenge here is that we want to
-# position the labels to avoid overlap with other labels
 for index, (name, label, (x, y)) in enumerate(
         zip(names, labels, embedding.T)):
 
